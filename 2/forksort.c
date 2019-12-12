@@ -8,10 +8,11 @@
 #include <sys/wait.h>
 #include <string.h>
 
-#define DEBUG 0
-#define DEBUG_FILE "test.in"
+#define DEBUG 1
 
-void *asureMem(void *p, int n, size_t size) {
+#define PROGRAM_NAME "forksort"
+
+void *asureMem(void *p, unsigned long n, size_t size) {
     void *ret = NULL;
     if (p == NULL) {
         ret = malloc(n * size);
@@ -51,7 +52,9 @@ void freeList(char **list, int c) {
 char **readWords(int *len) {
     char **list = NULL;
     int c;
-    read(STDIN_FILENO, &c, 1);
+    FILE* in = fdopen(STDIN_FILENO, "r");
+    c = fgetc(in);
+    fprintf(stderr, "  c: %c\n",c);
     int currentWordLen = 0;
     int wordCount = 0;
     while (c != EOF) {
@@ -61,13 +64,15 @@ char **readWords(int *len) {
         while (c != EOF && c != '\n') {
             list[wordCount - 1] = asureMem(list[wordCount - 1], ++currentWordLen, sizeof(char));
             list[wordCount - 1][currentWordLen - 1] = (char) c;
-            read(STDIN_FILENO, &c, 1);
+            fprintf(stderr, "     redc: %d\n", c);
+            c = fgetc(in);
         }
         list[wordCount - 1] = asureMem(list[wordCount - 1], ++currentWordLen, sizeof(char));
         list[wordCount - 1][currentWordLen - 1] = '\0';
         fprintf(stderr, "  RED: %s\n", list[wordCount - 1]);
         if (c != EOF) {
-            read(STDIN_FILENO, &c, 1);
+            fprintf(stderr, "   waiting for input...\n");
+            c = fgetc(in);
         }
     }
     *len = wordCount;
@@ -75,15 +80,31 @@ char **readWords(int *len) {
 }
 
 int main(int argc, char *argv[]) {
+    FILE* out = fdopen(STDOUT_FILENO, "w");
+    fprintf(stderr, "HALALALALO\n");
     int wordCount = 0;
     char **l = readWords(&wordCount);
+    fprintf(stderr, "    L: %d\n", wordCount);
     if (wordCount == 1) {
-        fprintf(stdout, "%s", l[0]);
+        fputs(l[0], out);
+        fputc(EOF, out);
+        fflush(out);
         freeList(l, wordCount);
         exit(EXIT_SUCCESS);
     }
 
     fprintf(stderr, "HELLO: %s", l[0]);
+
+    int pathLength = 100;
+    char *pathToProgram = NULL;
+    pathToProgram = asureMem(pathToProgram, pathLength, 1);
+    while(getcwd(pathToProgram, pathLength) == NULL) {
+        pathLength += 100;
+        pathToProgram = asureMem(pathToProgram, pathLength, 1);
+    }
+    pathToProgram = asureMem(pathToProgram, strlen(pathToProgram)+strlen(PROGRAM_NAME)+1, 1);
+    strcat(pathToProgram, "/");
+    strcat(pathToProgram, PROGRAM_NAME);
 
     int fdChild1[2];
     int fdChild2[2];
@@ -99,19 +120,20 @@ int main(int argc, char *argv[]) {
     int n2 = fork();
 
     if (n1 > 0 && n2 > 0) { // Parent
-        int toChild = fdChild1[1];
+        FILE* toChild = fdopen(fdChild1[1], "w");
         for (i = 0; i < wordCount; i++) {
-            fprintf(stderr, " %d\n",i);
-
             if (i == nHalf) {
                 fprintf(stderr, "SWITCH\n");
-                toChild = fdChild2[1];
-                close(fdChild1[1]);
+                fputc(EOF, toChild);
+                fflush(toChild);
+                toChild = fdopen(fdChild2[1], "w");
             }
-            int sent = write(toChild, l[i], strlen(l[i]));
-            fprintf(stderr, "TO(%d)(%d): %s\n", toChild, sent, l[i]);
-            write(toChild, "\n", 1);
+            int sent = fputs(l[i], toChild);
+            fputc('\n', toChild);
+            fprintf(stderr, "TO(%d): %s\n", sent, l[i]);
         }
+        fputc(EOF, toChild);
+        fflush(toChild);
         close(fdChild2[1]);
 
         fprintf(stderr, "PARENT: WAITING(2)\n");
@@ -121,13 +143,13 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "PARENT: DONE WAITING\n");
 
         if (WEXITSTATUS(statusChild1) == EXIT_SUCCESS && WEXITSTATUS(statusChild2) == EXIT_SUCCESS) {
-            dup2(STDIN_FILENO, fdChild1[0]);
+            dup2(fdChild1[0], STDIN_FILENO);
             int child1Len;
             char **resultChild1 = readWords(&child1Len);
             fprintf(stderr, "PARENT: C1_LEN:%d\n",child1Len);
             close(fdChild1[0]);
 
-            dup2(STDIN_FILENO, fdChild2[0]);
+            dup2(fdChild2[0], STDIN_FILENO);
             int child2Len;
             char **resultChild2 = readWords(&child2Len);
             fprintf(stderr, "PARENT: C2_LEN:%d\n",child2Len);
@@ -136,25 +158,33 @@ int main(int argc, char *argv[]) {
             int totalLen = child1Len + child2Len;
             char **merged = merge(resultChild1, resultChild2, totalLen);
 
+            FILE* out = fdopen(STDOUT_FILENO, "w");
             for (int k = 0; i < totalLen; i++) {
-                fprintf(stdout, "%s\n", merged[k]);
+                fprintf(out, "%s\n", merged[k]);
             }
-            fputc(EOF, stdout);
+            fputc(EOF, out);
+            fflush(out);
         } else {
             exit(EXIT_FAILURE);
         }
     } else if (n1 == 0 && n2 > 0) { // Child 1
-        sleep(5);
+        sleep(1);
         fprintf(stderr, " CHILD1\n");
-        dup2(STDIN_FILENO, fdChild1[1]);
-        dup2(STDOUT_FILENO, fdChild1[0]);
-        execlp("forksort", "forksort");
+        dup2(fdChild1[0], STDIN_FILENO);
+        dup2(fdChild1[1], STDIN_FILENO);
+        fprintf(stderr," C1 path: %s\n", pathToProgram);
+        if(execlp(pathToProgram, PROGRAM_NAME)==-1) {
+            fprintf(stderr, "Could not execlp C1\n");
+        }
     } else if (n1 > 0 && n2 == 0) { // Child 2
         sleep(2);
         fprintf(stderr, " CHILD2\n");
-        dup2(STDIN_FILENO, fdChild2[1]);
-        dup2(STDOUT_FILENO, fdChild2[0]);
-        execlp("forksort", "forksort");
+        dup2(fdChild2[0], STDIN_FILENO);
+        dup2(fdChild2[1], STDIN_FILENO);
+        fprintf(stderr," C2 path: %s\n", pathToProgram);
+        if(execlp(pathToProgram, PROGRAM_NAME)==-1) {
+            fprintf(stderr, "Could not execlp C2\n");
+        }
     }
     exit(EXIT_SUCCESS);
 }
