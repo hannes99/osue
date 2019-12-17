@@ -1,4 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" serverName="TILAB" />
+  <component name="PublishConfigData" serverName="TILAB">
+    <serverData>
+      <paths name="Remote Host (bdae554b-1248-4424-adc7-856d8591537c)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/tmp/tmp.cM9nigt7sm" local="$PROJECT_DIR$" />
+          </mappings>
+          <excludedPaths>
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug" />
+          </excludedPaths>
+        </serverdata>
+      </paths>
+    </serverData>
+  </component>
 </project>
