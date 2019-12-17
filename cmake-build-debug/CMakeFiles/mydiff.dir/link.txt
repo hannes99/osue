@@ -1,1 +1,0 @@
-/usr/bin/cc -g   CMakeFiles/mydiff.dir/1A/mydiff.c.o  -o mydiff 
