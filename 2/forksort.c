@@ -1,6 +1,10 @@
 //
-// Created by hannesl on 11.12.19.
+// Created by hannesl on 14.12.19.
 //
+
+#include "logger.h"
+
+#define PROGRAM_NAME "forksort"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,9 +12,25 @@
 #include <sys/wait.h>
 #include <string.h>
 
-#define DEBUG 1
 
-#define PROGRAM_NAME "forksort"
+void freeList(char **list, int c) {
+    int i;
+    for (i = 0; i < c; i++) {
+        free(list[i]);
+    }
+    free(list);
+}
+
+void closeBoth(int pipe[]) {
+    if (close(pipe[0])) {
+        log_perror("Could not close 0 of pipe");
+        exit(EXIT_FAILURE);
+    }
+    if (close(pipe[1])) {
+        log_perror("Could not close 0 of pipe");
+        exit(EXIT_FAILURE);
+    }
+}
 
 void *asureMem(void *p, unsigned long n, size_t size) {
     void *ret = NULL;
@@ -20,7 +40,7 @@ void *asureMem(void *p, unsigned long n, size_t size) {
         ret = realloc(p, n * size);
     }
     if (ret == NULL) {
-        fprintf(stderr, "Couldn't allocate memory!");
+        log_error("Could not allocate memory!");
         exit(EXIT_FAILURE);
     }
     return ret;
@@ -31,7 +51,8 @@ char **merge(char **a, char **b, int len) {
     ret = asureMem(ret, len, sizeof(char *));
     int aIndex = 0;
     int bIndex = 0;
-    for (int i = 0; i < len; i++) {
+    int i;
+    for (i = 0; i < len; i++) {
         if (strcmp(a[aIndex], b[bIndex]) < 0) {
             ret[i] = a[aIndex++];
         } else {
@@ -41,38 +62,32 @@ char **merge(char **a, char **b, int len) {
     return ret;
 }
 
-void freeList(char **list, int c) {
-    int i;
-    for (i = 0; i < c; i++) {
-        free(list[i]);
-    }
-    free(list);
-}
-
-char **readWords(int *len) {
+char **readWords(int *len, FILE *in) {
+    fprintf(stderr, "ONLY ONCE %d\n", getpid());
     char **list = NULL;
-    int c;
-    FILE* in = fdopen(STDIN_FILENO, "r");
-    c = fgetc(in);
-    fprintf(stderr, "  c: %c\n",c);
-    int currentWordLen = 0;
+    int currentWordLen;
     int wordCount = 0;
-    while (c != EOF) {
+    char c;
+    while (feof(in) == 0) {
+        fprintf(stderr, "%d WAIT FOR INP1UT...", getpid());
+        c = fgetc(in);
+        fprintf(stderr, "%d OK\n", getpid());
         currentWordLen = 0;
         list = asureMem(list, ++wordCount, sizeof(char *));
         list[wordCount - 1] = asureMem(list[wordCount - 1], 0, sizeof(char));
-        while (c != EOF && c != '\n') {
+        while (feof(in) == 0 && c != '\n') {
             list[wordCount - 1] = asureMem(list[wordCount - 1], ++currentWordLen, sizeof(char));
             list[wordCount - 1][currentWordLen - 1] = (char) c;
-            fprintf(stderr, "     redc: %d\n", c);
+            fprintf(stderr, "%d WAIT FOR IN2PUT...", getpid());
             c = fgetc(in);
+            fprintf(stderr, "%d OK\n", getpid());
         }
-        list[wordCount - 1] = asureMem(list[wordCount - 1], ++currentWordLen, sizeof(char));
-        list[wordCount - 1][currentWordLen - 1] = '\0';
-        fprintf(stderr, "  RED: %s\n", list[wordCount - 1]);
-        if (c != EOF) {
-            fprintf(stderr, "   waiting for input...\n");
-            c = fgetc(in);
+        if(currentWordLen>0) {
+            list[wordCount - 1] = asureMem(list[wordCount - 1], ++currentWordLen, sizeof(char));
+            list[wordCount - 1][currentWordLen - 1] = '\0';
+            fprintf(stderr, "   %d: red: %s\n", getpid(), list[wordCount - 1]);
+        } else {
+            wordCount--;
         }
     }
     *len = wordCount;
@@ -80,111 +95,164 @@ char **readWords(int *len) {
 }
 
 int main(int argc, char *argv[]) {
-    FILE* out = fdopen(STDOUT_FILENO, "w");
-    fprintf(stderr, "HALALALALO\n");
+    init_logger(argv[0]);
+    FILE *in = stdin;
+    if(argc>1) {
+        in = fopen(argv[1],"rb");
+    }
+    FILE *out = stdout;
     int wordCount = 0;
-    char **l = readWords(&wordCount);
-    fprintf(stderr, "    L: %d\n", wordCount);
+    char **words = readWords(&wordCount, in);
+    fprintf(stderr, "   %d: L: %d\n", getpid(), wordCount);
     if (wordCount == 1) {
-        fputs(l[0], out);
-        fputc(EOF, out);
-        fflush(out);
-        freeList(l, wordCount);
+        fprintf(stderr, "   %d: DONE\n", getpid());
+        fprintf(out, "%s\n", words[0]);
         exit(EXIT_SUCCESS);
+    } else if (wordCount == 0) {
+        log_error("Called with now words!");
+        exit(EXIT_FAILURE);
     }
 
-    fprintf(stderr, "HELLO: %s", l[0]);
+    int p_c1In[2];
+    int p_c1Out[2];
+    int p_c2In[2];
+    int p_c2Out[2];
 
-    int pathLength = 100;
-    char *pathToProgram = NULL;
-    pathToProgram = asureMem(pathToProgram, pathLength, 1);
-    while(getcwd(pathToProgram, pathLength) == NULL) {
-        pathLength += 100;
-        pathToProgram = asureMem(pathToProgram, pathLength, 1);
+    if (pipe(p_c1In) == -1) {
+        log_perror("Pipe for c1In failed");
+        exit(EXIT_FAILURE);
     }
-    pathToProgram = asureMem(pathToProgram, strlen(pathToProgram)+strlen(PROGRAM_NAME)+1, 1);
-    strcat(pathToProgram, "/");
-    strcat(pathToProgram, PROGRAM_NAME);
+    if (pipe(p_c1Out) == -1) {
+        log_perror("Pipe for c1Out failed");
+        exit(EXIT_FAILURE);
+    }
+    if (pipe(p_c2In) == -1) {
+        log_perror("Pipe for c2In failed");
+        exit(EXIT_FAILURE);
+    }
+    if (pipe(p_c2Out) == -1) {
+        log_perror("Pipe for c2Out failed");
+        exit(EXIT_FAILURE);
+    }
 
-    int fdChild1[2];
-    int fdChild2[2];
-    int statusChild1;
-    int statusChild2;
-    int i;
-    int nHalf = wordCount / 2;
-
-    pipe(fdChild1);
-    pipe(fdChild2);
-
-    int n1 = fork();
-    int n2 = fork();
-
-    if (n1 > 0 && n2 > 0) { // Parent
-        FILE* toChild = fdopen(fdChild1[1], "w");
-        for (i = 0; i < wordCount; i++) {
-            if (i == nHalf) {
-                fprintf(stderr, "SWITCH\n");
-                fputc(EOF, toChild);
-                fflush(toChild);
-                toChild = fdopen(fdChild2[1], "w");
-            }
-            int sent = fputs(l[i], toChild);
-            fputc('\n', toChild);
-            fprintf(stderr, "TO(%d): %s\n", sent, l[i]);
+    int pidC1 = fork();
+    if (pidC1 == 0) { // Child 1
+        closeBoth(p_c2In);
+        closeBoth(p_c2Out);
+        if (close(p_c1In[1]) == -1) {
+            perror("Could not close 1 of c1In pipe");
         }
-        fputc(EOF, toChild);
-        fflush(toChild);
-        close(fdChild2[1]);
-
-        fprintf(stderr, "PARENT: WAITING(2)\n");
-        wait(&statusChild1);
-        fprintf(stderr, "PARENT: WAITING(1)\n");
-        wait(&statusChild2);
-        fprintf(stderr, "PARENT: DONE WAITING\n");
-
-        if (WEXITSTATUS(statusChild1) == EXIT_SUCCESS && WEXITSTATUS(statusChild2) == EXIT_SUCCESS) {
-            dup2(fdChild1[0], STDIN_FILENO);
-            int child1Len;
-            char **resultChild1 = readWords(&child1Len);
-            fprintf(stderr, "PARENT: C1_LEN:%d\n",child1Len);
-            close(fdChild1[0]);
-
-            dup2(fdChild2[0], STDIN_FILENO);
-            int child2Len;
-            char **resultChild2 = readWords(&child2Len);
-            fprintf(stderr, "PARENT: C2_LEN:%d\n",child2Len);
-            close(fdChild2[0]);
-
-            int totalLen = child1Len + child2Len;
-            char **merged = merge(resultChild1, resultChild2, totalLen);
-
-            FILE* out = fdopen(STDOUT_FILENO, "w");
-            for (int k = 0; i < totalLen; i++) {
-                fprintf(out, "%s\n", merged[k]);
+        if (close(p_c1Out[0]) == -1) {
+            perror("Could not close 0 of c1Out pipe");
+        }
+        dup2(p_c1In[0], STDIN_FILENO);
+        dup2(p_c2Out[1], STDOUT_FILENO);
+        close(p_c2Out[1]);
+        execlp(argv[0], argv[0], NULL);
+        log_perror("Could not exec in Child 2");
+        exit(EXIT_FAILURE);
+    } else if (pidC1 > 0) {
+        int pidC2 = fork();
+        if (pidC2 == 0) { // Child 2
+            closeBoth(p_c1In);
+            closeBoth(p_c1Out);
+            if (close(p_c2In[1]) == -1) {
+                perror("Could not close 1 of c2In pipe");
             }
-            fputc(EOF, out);
-            fflush(out);
+            if (close(p_c2Out[0]) == -1) {
+                perror("Could not close 0 of c2Out pipe");
+            }
+            dup2(p_c2In[0], STDIN_FILENO);
+            dup2(p_c2Out[1], STDOUT_FILENO);
+            close(p_c2Out[1]);
+            execlp(argv[0], argv[0], NULL);
+            log_perror("Could not exec in Child 2");
+            exit(EXIT_FAILURE);
+        } else if (pidC2 > 0) { // Parent
+            int nHalf = wordCount/2;
+            int i;
+            FILE* c1_stdin = fdopen(p_c1In[1], "wb");
+            FILE* c2_stdin = fdopen(p_c2In[1], "wb");
+            if(c1_stdin == NULL) {
+                log_perror("Could not fdopen p_c1In[1]");
+                freeList(words, wordCount);
+                exit(EXIT_FAILURE);
+            }
+            if(c2_stdin == NULL) {
+                log_perror("Could not fdopen p_c2In[1]");
+                freeList(words, wordCount);
+                exit(EXIT_FAILURE);
+            }
+            for(i = 0;i<wordCount;i++) {
+                fprintf(stderr, "   %d: %s to ", getpid(), words[i]);
+                if (i<nHalf) {
+                    int written = fprintf(c1_stdin, "%s\n", words[i]);
+                    fprintf(stderr, "%d (%d)\n", pidC1, written);
+                } else {
+                    int written = fprintf(c2_stdin, "%s\n", words[i]);
+                    fprintf(stderr, "%d (%d)\n", pidC2, written);
+                }
+            }
+            if(fclose(c1_stdin) != 0) {
+                log_perror("Could not close stdin for child 1");
+                freeList(words, wordCount);
+                exit(EXIT_FAILURE);
+            }
+            if(fclose(c2_stdin) != 0) {
+                log_perror("Could not close stdin for child 2");
+                freeList(words, wordCount);
+                exit(EXIT_FAILURE);
+            }
+
+            int firstChildStatus;
+            int secondChildStatus;
+
+            waitpid(pidC2, &secondChildStatus, WUNTRACED);
+            waitpid(pidC1, &firstChildStatus, WUNTRACED);
+            fprintf(stderr, "So am I still waiting!\n");
+
+            if (WEXITSTATUS(firstChildStatus) == EXIT_SUCCESS && WEXITSTATUS(secondChildStatus) == EXIT_SUCCESS) {
+                FILE* c1_stdout = fdopen(p_c1Out[0], "rb");
+                FILE* c2_stdout = fdopen(p_c2Out[0], "rb");
+                if(c1_stdout == NULL) {
+                    log_perror("Could not fdopen p_c1Out[0]");
+                    freeList(words, wordCount);
+                    exit(EXIT_FAILURE);
+                }
+                if(c2_stdout == NULL) {
+                    log_perror("Could not fdopen p_c2Out[0]");
+                    freeList(words, wordCount);
+                    exit(EXIT_FAILURE);
+                }
+                int child1Len;
+                char **resultChild1 = readWords(&child1Len, c1_stdout);
+
+                int child2Len;
+                char **resultChild2 = readWords(&child2Len, c2_stdout);
+
+                fprintf(stderr, " C1: %d, C2: %d\n", child1Len, child2Len);
+
+                int totalLen = child1Len + child2Len;
+                char **merged = merge(resultChild1, resultChild2, totalLen);
+                fprintf(stderr, "%d\n", totalLen);
+                sleep(1);
+                for(i = 0;i<totalLen;i++) {
+                    fprintf(stdout, "%s\n", merged[i]);
+                }
+                exit(EXIT_SUCCESS);
+            } else {
+                log_error("One child didn't exit properly!");
+                exit(EXIT_FAILURE);
+            }
         } else {
+            log_error("Child 2 could not be forked!");
             exit(EXIT_FAILURE);
         }
-    } else if (n1 == 0 && n2 > 0) { // Child 1
-        sleep(1);
-        fprintf(stderr, " CHILD1\n");
-        dup2(fdChild1[0], STDIN_FILENO);
-        dup2(fdChild1[1], STDIN_FILENO);
-        fprintf(stderr," C1 path: %s\n", pathToProgram);
-        if(execlp(pathToProgram, PROGRAM_NAME)==-1) {
-            fprintf(stderr, "Could not execlp C1\n");
-        }
-    } else if (n1 > 0 && n2 == 0) { // Child 2
-        sleep(2);
-        fprintf(stderr, " CHILD2\n");
-        dup2(fdChild2[0], STDIN_FILENO);
-        dup2(fdChild2[1], STDIN_FILENO);
-        fprintf(stderr," C2 path: %s\n", pathToProgram);
-        if(execlp(pathToProgram, PROGRAM_NAME)==-1) {
-            fprintf(stderr, "Could not execlp C2\n");
-        }
+    } else {
+        log_error("Child 1 could not be forked!");
+        exit(EXIT_FAILURE);
     }
     exit(EXIT_SUCCESS);
+
 }
+

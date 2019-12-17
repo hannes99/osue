@@ -1,0 +1,18 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/hannesl/Development/C/osue/1A/mydiff.c
+stdio.h
+-
+string.h
+-
+stdlib.h
+-
+unistd.h
+-
+

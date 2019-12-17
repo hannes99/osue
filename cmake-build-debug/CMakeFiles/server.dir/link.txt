@@ -1,0 +1,1 @@
+/usr/bin/cc -g   CMakeFiles/server.dir/1B/server.c.o CMakeFiles/server.dir/1B/http.c.o CMakeFiles/server.dir/1B/url.c.o  -o server 
