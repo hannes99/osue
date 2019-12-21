@@ -163,7 +163,7 @@ int main(int argc, char *argv[]) {
 
         dup2(p_c1In[0], STDIN_FILENO);
         dup2(p_c1Out[1], STDOUT_FILENO);
-        //close(p_c1Out[1]);
+        close(p_c1Out[1]);
         execlp(argv[0], argv[0], NULL);
         log_perror("Could not exec in Child 2");
         if (DEBUG) { fclose(logout); }
@@ -179,7 +179,7 @@ int main(int argc, char *argv[]) {
 
             dup2(p_c2In[0], STDIN_FILENO);
             dup2(p_c2Out[1], STDOUT_FILENO);
-            //close(p_c2Out[1]);
+            close(p_c2Out[1]);
             execlp(argv[0], argv[0], NULL);
             log_perror("Could not exec in Child 2");
             if (DEBUG) { fclose(logout); }
