@@ -38,17 +38,28 @@ void closeBoth(int pipe[]) {
 
 char **merge(char **a, char **b, int aLen, int len) {
     char **ret = NULL;
-    ret = malloc(len * sizeof(char));
+    ret = malloc(len);
     if(ret==NULL) exit(EXIT_FAILURE);
     int aIndex = 0;
     int bIndex = 0;
     int bLen = len - aLen;
     int i;
+    if(DEBUG) {
+        fprintf(logout, "MERGE:\n");
+    }
     for (i = 0; i < len; i++) {
         if (aIndex < aLen && (bIndex >= bLen || strcmp(a[aIndex], b[bIndex]) < 0)) {
             ret[i] = a[aIndex++];
+            if(DEBUG) {
+                fprintf(logout, "\t\t %s from 1\n", ret[i]);
+                fflush(logout);
+            }
         } else {
             ret[i] = b[bIndex++];
+            if(DEBUG) {
+                fprintf(logout, "\t\t %s from 2\n", ret[i]);
+                fflush(logout);
+            }
         }
     }
     return ret;
@@ -117,6 +128,7 @@ int main(int argc, char *argv[]) {
     if (wordCount == 1) {
         fprintf(logout, " DONE(%s)!\n", words[0]);
         write(out_b, words[0], strlen(words[0]));
+        write(out_b, "\0", 1);
         if (DEBUG) { fclose(logout); }
         exit(EXIT_SUCCESS);
     } else if (wordCount == 0) {
