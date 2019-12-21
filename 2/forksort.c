@@ -327,6 +327,7 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (DEBUG) { fclose(logout); }
+                freeList(words, wordCount);
                 exit(EXIT_SUCCESS);
             } else {
                 if (DEBUG) {
