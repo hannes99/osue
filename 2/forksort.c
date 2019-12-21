@@ -102,7 +102,7 @@ char **readWords(int *len, FILE *in) {
 
 int main(int argc, char *argv[]) {
     int out_b = dup(1);
-    init_logger(argv[0]);
+    init_logger(argv[0], getpid());
     if (DEBUG == 1) {
         char logPath[50];
         sprintf(logPath, "logs/%d.txt", getpid());
