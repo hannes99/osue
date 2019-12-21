@@ -85,7 +85,7 @@ char **readWords(int *len, FILE *in) {
             }
             c = fgetc(in);
             if (DEBUG) {
-                fprintf(logout, "%c", '.');
+                fprintf(logout, ".");
                 fflush(logout);
             }
         }
@@ -117,8 +117,7 @@ int main(int argc, char *argv[]) {
     if(DEBUG) {fprintf(logout, "CALLED!%d", wordCount);}
     if (wordCount == 1) {
         fprintf(logout, " DONE(%s)!\n", words[0]);
-        fprintf(stdout, "%s\n", words[0]);
-        fflush(stdout);
+        write(out_b, words[0], strlen(words[0]));
         if (DEBUG) { fclose(logout); }
         exit(EXIT_SUCCESS);
     } else if (wordCount == 0) {
@@ -226,8 +225,9 @@ int main(int argc, char *argv[]) {
                         if (DEBUG) { fclose(logout); }
                         exit(EXIT_FAILURE);
                     }
+                    fflush(c1_stdin);
                 } else {
-                    int written = fprintf(c2_stdin, "%s\n", words[i]);
+                    int written = fprintf(c2_stdin, "%s", words[i]);
                     if (DEBUG) {
                         fprintf(logout, "\t %s to c2(%d)\n", words[i], written);
                         fflush(logout);
@@ -238,6 +238,10 @@ int main(int argc, char *argv[]) {
                         if (DEBUG) { fclose(logout); }
                         exit(EXIT_FAILURE);
                     }
+                    if(i<wordCount-1) {
+                        fprintf(c2_stdin, "\n");
+                    }
+                    fflush(c2_stdin);
                 }
             }
             if (fclose(c1_stdin) != 0) {
@@ -295,7 +299,7 @@ int main(int argc, char *argv[]) {
                 int child2Len;
                 char **resultChild2 = readWords(&child2Len, c2_stdout);
                 if (DEBUG) {
-                    fprintf(logout, "got %d words from c2 back\n", child1Len);
+                    fprintf(logout, "got %d words from c2 back\n", child2Len);
                     fflush(logout);
                 }
 
@@ -312,9 +316,14 @@ int main(int argc, char *argv[]) {
                 }
 
                 for (i = 0; i < totalLen; i++) {
-                    fprintf(stdout, "%s\n", merged[i]);
-//                    write(out_b, merged[i], strlen(merged[i]));
-//                    write(out_b, "\n", 1);
+                    if(write(out_b, merged[i], strlen(merged[i])) != strlen(merged[i])){
+                        log_error("Didnt write word successfully!");
+                    }
+                    if(i<totalLen-1) {
+                        if(write(out_b, "\n", 1) != 1){
+                            log_error("Didnt write new line successfully!");
+                        }
+                    }
                 }
 
                 if (DEBUG) { fclose(logout); }

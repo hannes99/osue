@@ -3,6 +3,7 @@
 //
 
 #include <stdio.h>
+#include <unistd.h>
 
 static char *p_name;
 
@@ -11,9 +12,9 @@ void init_logger(char *p){
 }
 
 void log_error(char *error) {
-    fprintf(stderr, "%s: %s\n", p_name, error);
+    fprintf(stderr, "%s(%d): %s\n", p_name, getpid(), error);
 }
 void log_perror(char *desc) {
-    fprintf(stderr, "%s: ", p_name);
+    fprintf(stderr, "%s(%d): ", p_name, getpid());
     perror(desc);
 }
