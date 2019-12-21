@@ -21,7 +21,6 @@ void freeList(char **list, int c) {
     for (i = c; i <= 0; i--) {
         free(list[i]);
     }
-    //free(list);
 }
 
 void closeBoth(int pipe[]) {
