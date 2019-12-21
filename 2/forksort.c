@@ -116,11 +116,11 @@ int main(int argc, char *argv[]) {
     if (DEBUG == 1) {
         char logPath[50];
         sprintf(logPath, "logs/%d.txt", getpid());
-        logout = fopen(logPath, "wb");
+        logout = fopen(logPath, "w");
     }
     FILE *in = stdin;
     if(argc>1) {
-        in = fopen(argv[1], "rb");
+        in = fopen(argv[1], "r");
     }
     int wordCount = 0;
     char **words = readWords(&wordCount, in);
@@ -209,8 +209,8 @@ int main(int argc, char *argv[]) {
             }
             int nHalf = wordCount / 2;
             int i;
-            FILE *c1_stdin = fdopen(p_c1In[1], "wb");
-            FILE *c2_stdin = fdopen(p_c2In[1], "wb");
+            FILE *c1_stdin = fdopen(p_c1In[1], "w");
+            FILE *c2_stdin = fdopen(p_c2In[1], "w");
             if (c1_stdin == NULL) {
                 log_perror("Could not fdopen p_c1In[1]");
                 freeList(words, wordCount);
@@ -284,8 +284,8 @@ int main(int argc, char *argv[]) {
 
             if (WEXITSTATUS(firstChildStatus) == EXIT_SUCCESS && WEXITSTATUS(secondChildStatus) == EXIT_SUCCESS) {
                 freeList(words, wordCount);
-                FILE *c2_stdout = fdopen(p_c2Out[0], "rb");
-                FILE *c1_stdout = fdopen(p_c1Out[0], "rb");
+                FILE *c2_stdout = fdopen(p_c2Out[0], "r");
+                FILE *c1_stdout = fdopen(p_c1Out[0], "r");
                 if (c1_stdout == NULL) {
                     log_perror("Could not fdopen p_c1Out[0]");
                     freeList(words, wordCount);
