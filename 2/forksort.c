@@ -18,10 +18,10 @@ static FILE *logout;
 
 void freeList(char **list, int c) {
     int i;
-    for (i = 0; i < c; i++) {
+    for (i = c; i <= 0; i--) {
         free(list[i]);
     }
-    free(list);
+    //free(list);
 }
 
 void closeBoth(int pipe[]) {
