@@ -33,7 +33,6 @@ void freeList(char **list, int c) {
  * @brief Closes both ends of a pipe
  *
  * @param pipe array[2] containing the two file-descriptors
- * @param c length of the list
  */
 void closeBoth(int pipe[]) {
     if (close(pipe[0])) {
@@ -84,7 +83,7 @@ char **merge(char **a, char **b, int aLen, int bLen) {
  *
  * @param l pointer to where to save the amount of strings red
  * @param in the stream from where to read from
- * @return an array of string in the same order they where red
+ * @return an array of strings in the same order they where red
  */
 char **readWords(int *len, FILE *in) {
     char **list = NULL;
