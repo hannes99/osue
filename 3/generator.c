@@ -77,6 +77,7 @@ int main(int argc, char *argv[]) {
             best = vs.size;
             fprintf(stdout, "Best solution: %d\n", vs.size);
         }
+        free(vs.edges);
         shuffle(nodes, nodeCount);
     }
     fprintf(stdout, "Graph was acyclic!\n");
