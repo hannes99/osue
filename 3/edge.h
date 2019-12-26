@@ -5,8 +5,6 @@
 #ifndef OSUE_EDGE_H
 #define OSUE_EDGE_H
 
-#include <bits/types/FILE.h>
-
 #define LIMITED_EDGESET_SIZE 8
 
 typedef struct {
