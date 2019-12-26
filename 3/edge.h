@@ -7,6 +7,8 @@
 
 #include <bits/types/FILE.h>
 
+#define LIMITED_EDGESET_SIZE 8
+
 typedef struct {
     int from;
     int to;
@@ -17,9 +19,13 @@ typedef struct {
     int size;
 } edgeSet;
 
-char *asString(edge e);
-char *setAsString(edgeSet e);
+typedef struct {
+    edge edges[LIMITED_EDGESET_SIZE];
+    int size;
+} limitedEdgeSet;
+
 void addToSet(edgeSet *s, edge e);
+
 edge readEdge(char *edgeString);
 
 #endif //OSUE_EDGE_H

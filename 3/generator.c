@@ -4,6 +4,7 @@
 
 #include "edge.h"
 #include "logger.h"
+#include "shared.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -21,7 +22,6 @@ int max(int a, int b) {
 void shuffle(int *array, size_t n) {
     if (n > 1) {
         for (size_t i = n - 1; i > 0; i--) {
-            // Pick a random index from 0 to i
             int j = rand() % (i + 1);
             int t = array[j];
             array[j] = array[i];
@@ -63,6 +63,8 @@ edgeSet readEdges(int edges, int *nodes, char *argv[]) {
 int main(int argc, char *argv[]) {
     init_logger("Arc", getpid());
     srand(time(0) + getpid());
+    int shmfd;
+    shm *mem = openSMem(&shmfd);
     int nodeCount = 0;
     int i;
     edgeSet edges = readEdges(argc - 1, &nodeCount, argv);
@@ -70,16 +72,29 @@ int main(int argc, char *argv[]) {
     for (i = 0; i < nodeCount; i++) {
         nodes[i] = i;
     }
-    int best = argc;
-    while (best > 0) {
+
+    while (mem->done == 0) {
         edgeSet vs = getValidEdges(nodes, &edges);
-        if (vs.size < best) {
-            best = vs.size;
-            fprintf(stdout, "Best solution: %d\n", vs.size);
+        sem_wait(&mem->data.writeSem);
+        if (mem->done == 0) sem_wait(&mem->data.bufferFullSem);
+        long pos = mem->data.writePos % BUFFER_SIZE;
+        int pla;
+        sem_getvalue(&mem->data.readSem, &pla);
+        if (vs.size <= 8) {
+            fprintf(stdout, "%d\n", vs.size);
+            mem->data.buffer[pos].size = vs.size;
+            for (int i = 0; i < vs.size; i++) {
+                mem->data.buffer[pos].edges[i] = vs.edges[i];
+            }
+            mem->data.writePos++;
+            if (sem_post(&mem->data.readSem) == -1) {
+                log_perror("Could not post read sem");
+                exit(EXIT_FAILURE);
+            }
         }
         free(vs.edges);
+        sem_post(&mem->data.writeSem);
         shuffle(nodes, nodeCount);
     }
-    fprintf(stdout, "Graph was acyclic!\n");
     exit(EXIT_SUCCESS);
 }
