@@ -4,6 +4,7 @@
 
 #include "logger.h"
 #include "shared.h"
+#include "semaph.h"
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -12,11 +13,12 @@
 
 static int running;
 static shm *mem;
+static sem_t *readSem, *writeSem, *fullSem;
 
 void sigHandler(int signo) {
     running = 0;
     mem->done = 1;
-    sem_post(&mem->data.readSem);
+    sem_post(readSem);
 }
 
 int main(int argc, char *argv[]) {
@@ -32,29 +34,37 @@ int main(int argc, char *argv[]) {
     }
     running = 1;
     mem = initSMem(&shmfd);
+    readSem = initSem(READ_S, 0);
+    writeSem = initSem(WRITE_S, 1);
+    fullSem = initSem(BUFFER_FULL_S, BUFFER_SIZE);
     limitedEdgeSet best;
     best.size = 8;
     while (running) {
-        sem_wait(&mem->data.readSem);
+        sem_wait(readSem);
         long pos = mem->data.readPos % BUFFER_SIZE;
         if (mem->data.buffer[pos].size < best.size) {
             best.size = mem->data.buffer[pos].size;
-            fprintf(stdout, "Solution with %d edges:", best.size);
-            for (int i = 0; i < best.size; i++) {
-                best.edges[i] = mem->data.buffer[pos].edges[i];
-                fprintf(stdout, " %d-%d", best.edges[i].from, best.edges[i].to);
-            }
-            fprintf(stdout, "\n");
-            fflush(stdout);
-            if (best.size == 0) {
+            if (best.size > 0) {
+                fprintf(stdout, "Solution with %d edges:", best.size);
+                for (int i = 0; i < best.size; i++) {
+                    best.edges[i] = mem->data.buffer[pos].edges[i];
+                    fprintf(stdout, " %d-%d", best.edges[i].from, best.edges[i].to);
+                }
+                fprintf(stdout, "\n");
+                fflush(stdout);
+            } else {
+                fprintf(stdout, "The graph is acyclic!\n");
                 running = 0;
-                sem_post(&mem->data.writeSem);
+                sem_post(writeSem);
             }
         }
-        sem_post(&mem->data.bufferFullSem);
+        sem_post(fullSem);
         mem->data.readPos++;
     }
     mem->done = 1;
     sleep(1);
     removeSMem(mem, shmfd);
+    removeSem(READ_S);
+    removeSem(WRITE_S);
+    removeSem(BUFFER_FULL_S);
 }

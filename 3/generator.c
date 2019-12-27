@@ -5,11 +5,14 @@
 #include "edge.h"
 #include "logger.h"
 #include "shared.h"
+#include "semaph.h"
 
 #include <stdlib.h>
-#include <stdio.h>
 #include <time.h>
 #include <unistd.h>
+#include <stdio.h>
+
+#define VERBOSE 1
 
 
 int max(int a, int b) {
@@ -65,6 +68,9 @@ int main(int argc, char *argv[]) {
     srand(time(0) + getpid());
     int shmfd;
     shm *mem = openSMem(&shmfd);
+    sem_t *readSem = openSem(READ_S);
+    sem_t *writeSem = openSem(WRITE_S);
+    sem_t *fullSem = openSem(BUFFER_FULL_S);
     int nodeCount = 0;
     int i;
     edgeSet edges = readEdges(argc - 1, &nodeCount, argv);
@@ -75,26 +81,29 @@ int main(int argc, char *argv[]) {
 
     while (mem->done == 0) {
         edgeSet vs = getValidEdges(nodes, &edges);
-        sem_wait(&mem->data.writeSem);
-        if (mem->done == 0) sem_wait(&mem->data.bufferFullSem);
+        sem_wait(writeSem);
+        if (mem->done == 0) sem_wait(fullSem);
         long pos = mem->data.writePos % BUFFER_SIZE;
-        int pla;
-        sem_getvalue(&mem->data.readSem, &pla);
         if (vs.size <= 8) {
-            fprintf(stdout, "%d\n", vs.size);
+            if (VERBOSE) fprintf(stdout, "%d\n", vs.size);
             mem->data.buffer[pos].size = vs.size;
             for (int i = 0; i < vs.size; i++) {
                 mem->data.buffer[pos].edges[i] = vs.edges[i];
             }
             mem->data.writePos++;
-            if (sem_post(&mem->data.readSem) == -1) {
+            if (sem_post(readSem) == -1) {
                 log_perror("Could not post read sem");
                 exit(EXIT_FAILURE);
             }
         }
         free(vs.edges);
-        sem_post(&mem->data.writeSem);
+        sem_post(writeSem);
         shuffle(nodes, nodeCount);
     }
+    closeSMem(mem, shmfd);
+    closeSem(readSem);
+    closeSem(writeSem);
+    closeSem(fullSem);
+    fprintf(stdout, "DONE");
     exit(EXIT_SUCCESS);
 }

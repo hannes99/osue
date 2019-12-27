@@ -9,16 +9,12 @@
 
 #define BUFFER_SIZE 20
 #define SHM_NAME "/arcshm"
-#define READ_SEM "/semread"
-#define WRITE_SEM "/semwrite"
-#define BUFFER_FULL_SEM "/sembufferf"
-
-#include <semaphore.h>
+#define READ_S "/readsem"
+#define WRITE_S "/writesem"
+#define BUFFER_FULL_S "/bufferfullsem"
 
 struct {
-    sem_t readSem;
-    sem_t writeSem;
-    sem_t bufferFullSem;
+    //TODO di semaphoers solletn bitte net in sm seine, jeder tuat se jo selbr auf, in sm uanfoch lai die namen fa die semaphores speichern
     long readPos;
     long writePos;
     limitedEdgeSet buffer[BUFFER_SIZE];
