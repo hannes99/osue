@@ -5,7 +5,7 @@
 #ifndef OSUE_EDGE_H
 #define OSUE_EDGE_H
 
-#define LIMITED_EDGESET_SIZE 8
+#define LIMITED_EDGESET_SIZE 30
 
 typedef struct {
     int from;

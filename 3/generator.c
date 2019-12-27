@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
         sem_wait(writeSem);
         if (mem->done == 0) sem_wait(fullSem);
         long pos = mem->data.writePos % BUFFER_SIZE;
-        if (vs.size <= 8) {
+        if (vs.size <= LIMITED_EDGESET_SIZE) {
             if (VERBOSE) fprintf(stdout, "%d\n", vs.size);
             mem->data.buffer[pos].size = vs.size;
             for (int i = 0; i < vs.size; i++) {
