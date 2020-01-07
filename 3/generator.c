@@ -12,7 +12,7 @@
 #include <unistd.h>
 #include <stdio.h>
 
-#define VERBOSE 1
+#define VERBOSE 0
 
 
 int max(int a, int b) {
