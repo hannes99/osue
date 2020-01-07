@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
     writeSem = initSem(WRITE_S, 1);
     fullSem = initSem(BUFFER_FULL_S, BUFFER_SIZE);
     limitedEdgeSet best;
-    best.size = 8;
+    best.size = LIMITED_EDGESET_SIZE;
     while (running) {
         sem_wait(readSem);
         long pos = mem->data.readPos % BUFFER_SIZE;

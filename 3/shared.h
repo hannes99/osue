@@ -8,13 +8,12 @@
 #include "edge.h"
 
 #define BUFFER_SIZE 20
-#define SHM_NAME "/arcshm"
-#define READ_S "/readsem"
-#define WRITE_S "/writesem"
-#define BUFFER_FULL_S "/bufferfullsem"
+#define SHM_NAME "/11808227arcshm"
+#define READ_S "/11808227readsem"
+#define WRITE_S "/11808227writesem"
+#define BUFFER_FULL_S "/11808227bufferfullsem"
 
 struct {
-    //TODO di semaphoers solletn bitte net in sm seine, jeder tuat se jo selbr auf, in sm uanfoch lai die namen fa die semaphores speichern
     long readPos;
     long writePos;
     limitedEdgeSet buffer[BUFFER_SIZE];

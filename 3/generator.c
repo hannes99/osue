@@ -78,11 +78,12 @@ int main(int argc, char *argv[]) {
     for (i = 0; i < nodeCount; i++) {
         nodes[i] = i;
     }
-
-    while (mem->done == 0) {
+    int run = 0;
+    while (run == 0) {
         edgeSet vs = getValidEdges(nodes, &edges);
+        if (run==1) sem_wait(fullSem);
         sem_wait(writeSem);
-        if (mem->done == 0) sem_wait(fullSem);
+        run = mem->done;
         long pos = mem->data.writePos % BUFFER_SIZE;
         if (vs.size <= LIMITED_EDGESET_SIZE) {
             if (VERBOSE) fprintf(stdout, "%d\n", vs.size);
