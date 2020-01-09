@@ -1,3 +1,13 @@
+/**
+ * @file shared.c
+ * @author Hannes Laimer <e11808227@student.tuwien.ac.at>
+ * @date 23.12.2019
+ *
+ * @brief File contains an implementation of utility functions for the shared memory.
+ *
+ * These are implementations of utility functions for shared memory.
+ */
+
 #include "shared.h"
 #include "logger.h"
 
@@ -6,6 +16,12 @@
 #include <unistd.h>
 #include <stdlib.h>
 
+/**
+ * @brief Initialises a new shared memory with a given name.
+ *
+ * @param name of the shared memory
+ * @return pointer to the created shared memory
+ */
 shm *initSMem(int *shmfd) {
     shm *ret;
     *shmfd = shm_open(SHM_NAME, O_RDWR | O_CREAT, 0600);
@@ -33,6 +49,12 @@ shm *initSMem(int *shmfd) {
     return ret;
 }
 
+/**
+ * @brief Opens an existing shared memory with a given name.
+ *
+ * @param name of the shared memory
+ * @return pointer to the opened shared memory
+ */
 shm *openSMem(int *shmfd) {
     shm *ret;
     *shmfd = shm_open(SHM_NAME, O_RDWR, 0600);
@@ -51,6 +73,11 @@ shm *openSMem(int *shmfd) {
     return ret;
 }
 
+/**
+ * @brief Closes an existing shared memory with a given name.
+ *
+ * @param name of the shared memory
+ */
 void closeSMem(shm *mem, int fd) {
     if (munmap(mem, sizeof(*mem)) == -1) {
         log_error("Could not munmap smem!");
@@ -62,6 +89,11 @@ void closeSMem(shm *mem, int fd) {
     }
 }
 
+/**
+ * @brief Removes an existing shared memory with a given name.
+ *
+ * @param name of the shared memory
+ */
 void removeSMem(shm *mem, int fd) {
     if (munmap(mem, sizeof(*mem)) == -1) {
         log_error("Could not munmap smem!");
@@ -76,8 +108,4 @@ void removeSMem(shm *mem, int fd) {
     if (close(fd) == -1) {
         log_perror("Could not close smem fd!");
     }
-}
-
-void addEdgeSet(shm *mem, edgeSet e) {
-
 }

@@ -1,6 +1,13 @@
-//
-// Created by hannesl on 23.12.19.
-//
+/**
+ * @file generator.c
+ * @author Hannes Laimer <e11808227@student.tuwien.ac.at>
+ * @date 23.12.2019
+ *
+ * @brief File contains an implementation of a generator generating random solutions for the arc set problem.
+ *
+ * Those solution are written from generator programs to a shared memory. Solutions
+ * are buffered in a cyclic buffer of static size.
+ */
 
 #include "edge.h"
 #include "logger.h"
@@ -22,6 +29,12 @@ int max(int a, int b) {
     return b;
 }
 
+/**
+ * @brief Shuffles an array of a given size.
+ *
+ * @param array the array to be shuffled
+ * @param n the size of the array
+ */
 void shuffle(int *array, size_t n) {
     if (n > 1) {
         for (size_t i = n - 1; i > 0; i--) {
@@ -33,6 +46,12 @@ void shuffle(int *array, size_t n) {
     }
 }
 
+/**
+ * @brief Selects edges that form a feedback arc set
+ *
+ * @param nodes nodes in the graph
+ * @param edges edgeSet to select the edges from
+ */
 edgeSet getValidEdges(const int nodes[], edgeSet *edges) {
     int i, o;
     edgeSet ret;
@@ -50,6 +69,14 @@ edgeSet getValidEdges(const int nodes[], edgeSet *edges) {
     return ret;
 }
 
+/**
+ * @brief Reads and converts the edges from argv to an edgeSet
+ *
+ * @param edges count of edges
+ * @param nodes pointer to where the amount of nodes in the graph should be saved
+ * @param argv the arguments that were passed
+ * @return edgeSet containing the edges specified in argv
+ */
 edgeSet readEdges(int edges, int *nodes, char *argv[]) {
     edgeSet ret;
     ret.size = 0;
@@ -64,7 +91,7 @@ edgeSet readEdges(int edges, int *nodes, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
-    init_logger("Arc", getpid());
+    init_logger("generator", getpid());
     srand(time(0) + getpid());
     int shmfd;
     shm *mem = openSMem(&shmfd);
@@ -78,33 +105,51 @@ int main(int argc, char *argv[]) {
     for (i = 0; i < nodeCount; i++) {
         nodes[i] = i;
     }
-    int run = 0;
-    while (run == 0) {
+    int done = 0;
+    while (done == 0) {
         edgeSet vs = getValidEdges(nodes, &edges);
-        if (run==1) sem_wait(fullSem);
-        sem_wait(writeSem);
-        run = mem->done;
-        long pos = mem->data.writePos % BUFFER_SIZE;
-        if (vs.size <= LIMITED_EDGESET_SIZE) {
-            if (VERBOSE) fprintf(stdout, "%d\n", vs.size);
-            mem->data.buffer[pos].size = vs.size;
-            for (int i = 0; i < vs.size; i++) {
-                mem->data.buffer[pos].edges[i] = vs.edges[i];
+        if (sem_wait(fullSem) == -1) {
+            log_perror("Could not wait for full sem");
+            break;
+        }
+        if (sem_wait(writeSem) == -1) {
+            log_perror("Could not wait for write sem");
+            break;
+        }
+        done = mem->done;
+        if (done == 0) {
+            long pos = mem->data.writePos % BUFFER_SIZE;
+            if (vs.size <= LIMITED_EDGESET_SIZE) {
+                if (VERBOSE) fprintf(stdout, "%d\n", vs.size);
+                mem->data.buffer[pos].size = vs.size;
+                for (int i = 0; i < vs.size; i++) {
+                    mem->data.buffer[pos].edges[i] = vs.edges[i];
+                }
+                mem->data.writePos++;
+                if (sem_post(readSem) == -1) {
+                    log_perror("Could not post read sem");
+                    exit(EXIT_FAILURE);
+                }
+            } else {
+                if (sem_post(fullSem) == -1) {
+                    log_perror("Could not post full sem");
+                    exit(EXIT_FAILURE);
+                }
             }
-            mem->data.writePos++;
-            if (sem_post(readSem) == -1) {
-                log_perror("Could not post read sem");
+            shuffle(nodes, nodeCount);
+        } else {
+            if (sem_post(fullSem) == -1) {
+                log_perror("Could not post full sem");
                 exit(EXIT_FAILURE);
             }
         }
         free(vs.edges);
         sem_post(writeSem);
-        shuffle(nodes, nodeCount);
     }
     closeSMem(mem, shmfd);
     closeSem(readSem);
     closeSem(writeSem);
     closeSem(fullSem);
-    fprintf(stdout, "DONE");
+    log_error("DONE");
     exit(EXIT_SUCCESS);
 }
